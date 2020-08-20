@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 
 import AsyncStorage from '@react-native-community/async-storage';
+import { Alert } from 'react-native';
 
 interface Product {
   id: string;
@@ -25,27 +26,86 @@ interface CartContext {
 
 const CartContext = createContext<CartContext | null>(null);
 
+const StorafeKey = '@GoMarketplace:products';
+
 const CartProvider: React.FC = ({ children }) => {
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     async function loadProducts(): Promise<void> {
-      // TODO LOAD ITEMS FROM ASYNC STORAGE
+      const productsStorage = await AsyncStorage.getItem(StorafeKey);
+
+      if (productsStorage) {
+        setProducts(JSON.parse(productsStorage));
+      }
     }
 
     loadProducts();
   }, []);
 
-  const addToCart = useCallback(async product => {
-    // TODO ADD A NEW ITEM TO THE CART
+  const addToCart = useCallback(
+    async (product: Product) => {
+      // TODO ADD A NEW ITEM TO THE CART
+
+      const itemExists = products.findIndex(item => item.id === product.id);
+
+      if (itemExists >= 0) {
+        setProducts(current => {
+          const newState = current.map(item => {
+            return item.id === product.id
+              ? { ...item, quantity: item.quantity + 1 }
+              : item;
+          });
+
+          AsyncStorage.setItem(StorafeKey, JSON.stringify(newState));
+
+          return newState;
+        });
+      } else {
+        setProducts(current => {
+          const newState = [...current, { ...product, quantity: 1 }];
+
+          AsyncStorage.setItem(StorafeKey, JSON.stringify(newState));
+
+          return newState;
+        });
+      }
+    },
+    [products],
+  );
+
+  const increment = useCallback(async (id: string) => {
+    setProducts(current => {
+      const newState = current.map(item =>
+        item.id === id ? { ...item, quantity: item.quantity + 1 } : item,
+      );
+
+      AsyncStorage.setItem(StorafeKey, JSON.stringify(newState));
+
+      return newState;
+    });
   }, []);
 
-  const increment = useCallback(async id => {
-    // TODO INCREMENTS A PRODUCT QUANTITY IN THE CART
-  }, []);
-
-  const decrement = useCallback(async id => {
+  const decrement = useCallback(async (id: string) => {
     // TODO DECREMENTS A PRODUCT QUANTITY IN THE CART
+
+    setProducts(current => {
+      const itemIndex = current.findIndex(item => item.id === id);
+
+      if (current[itemIndex]?.quantity === 1) {
+        const newState = current.filter(item => item.id !== id);
+        AsyncStorage.setItem(StorafeKey, JSON.stringify(newState));
+        return newState;
+      }
+
+      const newState = current.map(item =>
+        item.id === id ? { ...item, quantity: item.quantity - 1 } : item,
+      );
+
+      AsyncStorage.setItem(StorafeKey, JSON.stringify(newState));
+
+      return newState;
+    });
   }, []);
 
   const value = React.useMemo(
